@@ -2,15 +2,13 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
-#include <TelnetStream.h>
 // #include <Ps3Controller.h>
 
+#include "udp_logger.h"
 #include "wifi_credentials.h"
 
 AsyncWebServer server(80);
-
-// Stream *logger = &TelnetStream;
-Stream *logger = &Serial;
+UdpLoggerClass Logger;
 
 void setup()
 {
@@ -29,7 +27,7 @@ void setup()
     Serial.print(".");
   }
 
-  TelnetStream.begin();
+  Logger.init(5555);
 
   Serial.println("");
   Serial.print("Connected to ");
@@ -43,13 +41,13 @@ void setup()
   AsyncElegantOTA.begin(&server);
   server.begin();
 
-  logger->println("HTTP server started");
+  Logger.println("HTTP server started");
 }
 
 void loop()
 {
   delay(1000);
-  logger->println("alive");
+  Logger.println("Here is my message");
   //  if (Ps3.isConnected()){
   //    Log.println("Controller connected!");
   //  }
