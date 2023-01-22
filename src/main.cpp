@@ -5,6 +5,7 @@
 // #include <Ps3Controller.h>
 
 #include "udp_logger.h"
+#include "Hbridge.h"
 #include "wifi_credentials.h"
 
 // ESP32 Dev
