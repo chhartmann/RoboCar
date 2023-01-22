@@ -1,122 +1,54 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include <AsyncElegantOTA.h>
-#include <TLog.h>
-#include <TelnetSerialStream.h>
+#include <ArduinoOTA.h>
+#include <TelnetStream.h>
 #include <Ps3Controller.h>
 
 #include "wifi_credentials.h"
 
-#include "esp_camera.h"
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
-#include "camera_pins.h"
-
-#define LED_GPIO_NUM    4
-
-void startCameraServer();
-void setupLedFlash(int pin);
-
 AsyncWebServer server(80);
 
-TelnetSerialStream telnetSerialStream = TelnetSerialStream();
-//TODO: add webserialstream and syslogstream?
+Stream* logger = &TelnetStream;
+//Stream* logger2 = &Serial;
 
-void setupCam() {
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sscb_sda = SIOD_GPIO_NUM;
-  config.pin_sscb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG; // for streaming
-  //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-  config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
-  config.fb_count = 1;
-  
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
-  if(config.pixel_format == PIXFORMAT_JPEG){
-    if(psramFound()){
-      config.jpeg_quality = 10;
-      config.fb_count = 2;
-      config.grab_mode = CAMERA_GRAB_LATEST;
-    } else {
-      // Limit the frame size when PSRAM is not available
-      config.frame_size = FRAMESIZE_SVGA;
-      config.fb_location = CAMERA_FB_IN_DRAM;
-    }
-  } else {
-    // Best option for face detection/recognition
-    config.frame_size = FRAMESIZE_240X240;
-#if CONFIG_IDF_TARGET_ESP32S3
-    config.fb_count = 2;
-#endif
-  }
+void setupOTA() {
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
 
-#if defined(CAMERA_MODEL_ESP_EYE)
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
-#endif
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      logger->println("Start updating " + type);
 
-  // camera init
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
-  }
+      // server.end();
+      // TelnetStream.end();
+    })
+    .onEnd([]() {
+      logger->println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      logger->printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      logger->printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) logger->println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) logger->println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) logger->println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) logger->println("Receive Failed");
+      else if (error == OTA_END_ERROR) logger->println("End Failed");
+    });
 
-  sensor_t * s = esp_camera_sensor_get();
-  // initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1); // flip it back
-    s->set_brightness(s, 1); // up the brightness just a bit
-    s->set_saturation(s, -2); // lower the saturation
-  }
-  // drop down frame size for higher initial frame rate
-  if(config.pixel_format == PIXFORMAT_JPEG){
-    s->set_framesize(s, FRAMESIZE_QVGA);
-  }
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
-#endif
-
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-  s->set_vflip(s, 1);
-#endif
-
-// Setup LED FLash if LED pin is defined in camera_pins.h
-#if defined(LED_GPIO_NUM)
-  setupLedFlash(LED_GPIO_NUM);
-#endif
-
-  startCameraServer();
-  Log.print("Camera Ready!");
+  ArduinoOTA.begin();
 }
 
 void setup() {
   Serial.begin(115200);
 
-  Ps3.begin("YourDeviceAddress");
+//  Ps3.begin("YourDeviceAddress");
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -127,38 +59,32 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+
+  TelnetStream.begin();
+
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  Log.addPrintStream(std::make_shared<TelnetSerialStream>(telnetSerialStream));
+  setupOTA();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Hi! I am ESP32.");
   });
 
-  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
   server.begin();
-  Serial.println("HTTP server started");
+  logger->println("HTTP server started");
   
 }
 
 void loop() {
-  Log.loop();
+  ArduinoOTA.handle();
+  delay(1000);
+  logger->println("alive");
+//  if (Ps3.isConnected()){
+//    Log.println("Controller connected!");
+//  }
 
-  // Say something every seconds.
-  static unsigned  long last_report = millis();
-  if (millis() - last_report < 1 * 1000)
-    return;
-
-  static int i = 0;
-  Log.printf("Hello number %d from the loop\n", i++);
-
-  if (Ps3.isConnected()){
-    Log.println("Controller connected!");
-  }
-
-  last_report = millis();
 }
