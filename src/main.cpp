@@ -39,6 +39,7 @@ void setup()
   }
 
   Logger.init(UDP_LOG_PORT);
+  Logger.println("\033cWiFi connected"); // clear screen
 
   Serial.println("");
   Serial.print("Connected to ");
