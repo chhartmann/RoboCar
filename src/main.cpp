@@ -7,6 +7,14 @@
 #include "udp_logger.h"
 #include "wifi_credentials.h"
 
+// ESP32 Dev
+#define STATUS_LED_PIN 2
+
+// ESP32 Cam
+// #define STATUS_LED_PIN 33
+
+#define UDP_LOG_PORT 5555
+
 AsyncWebServer server(80);
 UdpLoggerClass Logger;
 
@@ -14,6 +22,7 @@ void setup()
 {
   Serial.begin(115200);
 
+  pinMode(STATUS_LED_PIN, OUTPUT);
   //  Ps3.begin("YourDeviceAddress");
 
   WiFi.mode(WIFI_STA);
@@ -29,7 +38,7 @@ void setup()
     Serial.print(".");
   }
 
-  Logger.init(5555);
+  Logger.init(UDP_LOG_PORT);
 
   Serial.println("");
   Serial.print("Connected to ");
@@ -48,9 +57,9 @@ void setup()
 
 void loop()
 {
-  delay(1000);
   Logger.println("Here is my message");
-  //  if (Ps3.isConnected()){
-  //    Log.println("Controller connected!");
-  //  }
+  delay(500);
+  digitalWrite(STATUS_LED_PIN, HIGH);
+  delay(500);
+  digitalWrite(STATUS_LED_PIN, LOW);
 }
