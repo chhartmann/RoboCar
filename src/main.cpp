@@ -17,6 +17,8 @@ void setup()
   //  Ps3.begin("YourDeviceAddress");
 
   WiFi.mode(WIFI_STA);
+  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+  WiFi.setHostname("RoboCar");
   WiFi.begin(ssid, password);
   Serial.println("");
 
