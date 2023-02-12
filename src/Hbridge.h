@@ -1,9 +1,11 @@
 #ifndef __H_BRIDGE__
 #define __H_BRIDGE__
 
+#include <Arduino.h>
+
 class HBridgeChannel
 {
-    const int freq = 5000;
+    const int freq = 30000;
     const int resolution = 8;
     int pwmChannel;
     int enablePin;
@@ -23,27 +25,27 @@ public:
         pinMode(enablePin, OUTPUT);
         ledcSetup(pwmChannel, freq, resolution);
         ledcAttachPin(enablePin, pwmChannel);
+        velocity(0);
     }
 
-    void forward(int vel)
+    void velocity(int vel)
     {
-        digitalWrite(dirPin1, HIGH);
-        digitalWrite(dirPin2, LOW);
-        ledcWrite(pwmChannel, vel);
-    }
-
-    void backward(int vel)
-    {
-        digitalWrite(dirPin1, LOW);
-        digitalWrite(dirPin2, HIGH);
-        ledcWrite(pwmChannel, vel);
-    }
-
-    void stop()
-    {
-        digitalWrite(dirPin1, LOW);
-        digitalWrite(dirPin2, LOW);
-        digitalWrite(enablePin, LOW);
+        if (vel == 0)
+        {
+            digitalWrite(dirPin1, LOW);
+            digitalWrite(dirPin2, LOW);
+        }
+        else if (vel > 0)
+        {
+            digitalWrite(dirPin1, HIGH);
+            digitalWrite(dirPin2, LOW);
+        }
+        else
+        {
+            digitalWrite(dirPin1, LOW);
+            digitalWrite(dirPin2, HIGH);
+        }
+        ledcWrite(pwmChannel, abs(vel));
     }
 };
 
